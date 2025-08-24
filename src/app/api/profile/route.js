@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
-export async function GET() {
+export async function GET(request) {
   try {
     const session = await getServerSession(authOptions)
     
@@ -14,8 +14,25 @@ export async function GET() {
       )
     }
 
+    // Check if admin is requesting another user's profile
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+    
+    let targetUserId = session.user.id
+    
+    // If userId is provided and user is admin, allow access to any profile
+    if (userId && session.user.role === 'ADMIN') {
+      targetUserId = userId
+    } else if (userId && session.user.role !== 'ADMIN') {
+      // Regular users can only access their own profile
+      return NextResponse.json(
+        { error: 'Forbidden: You can only access your own profile' },
+        { status: 403 }
+      )
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: targetUserId },
       select: {
         id: true,
         email: true,
@@ -55,7 +72,21 @@ export async function PATCH(request) {
       )
     }
 
-    const { name, bio, profilePic } = await request.json()
+    const body = await request.json()
+    const { name, bio, profilePic, userId } = body
+
+    let targetUserId = session.user.id
+    
+    // If userId is provided and user is admin, allow editing any profile
+    if (userId && session.user.role === 'ADMIN') {
+      targetUserId = userId
+    } else if (userId && session.user.role !== 'ADMIN') {
+      // Regular users can only edit their own profile
+      return NextResponse.json(
+        { error: 'Forbidden: You can only edit your own profile' },
+        { status: 403 }
+      )
+    }
 
     // Validate input
     if (!name || name.trim().length === 0) {
@@ -73,7 +104,7 @@ export async function PATCH(request) {
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: targetUserId },
       data: {
         name: name.trim(),
         bio: bio ? bio.trim() : null,

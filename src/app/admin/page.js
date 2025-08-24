@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { SettingsIcon, UsersIcon, MailIcon, Plus, Trash } from 'lucide-react'
+import { SettingsIcon, UsersIcon, MailIcon, Plus, Trash, Edit, AlertTriangle } from 'lucide-react'
 import AvatarImage from '@/components/AvatarImage'
+import EditUserModal from '@/components/EditUserModal'
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession()
@@ -15,6 +16,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [editingUser, setEditingUser] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState(null)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -87,6 +91,43 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       setError('An error occurred')
+    }
+  }
+
+  const handleEditUser = async (user) => {
+    setEditingUser(user)
+    setShowEditModal(true)
+  }
+
+  const handleUserUpdated = (updatedUser) => {
+    setUsers(users.map(user => 
+      user.id === updatedUser.id ? updatedUser : user
+    ))
+    setMessage('User updated successfully!')
+  }
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone and will delete all their posts, comments, and reactions.')) {
+      return
+    }
+
+    setDeletingUserId(userId)
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setUsers(users.filter(user => user.id !== userId))
+        setMessage('User deleted successfully')
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to delete user')
+      }
+    } catch (error) {
+      setError('An error occurred while deleting user')
+    } finally {
+      setDeletingUserId(null)
     }
   }
 
@@ -185,10 +226,10 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-semibold text-gray-900">Registered Users</h2>
           </div>
 
-          <div className="space-y-3 max-h-60 overflow-y-auto">
+          <div className="space-y-3 max-h-80 overflow-y-auto">
             {users.map((user) => (
               <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                <div className="flex items-center">
+                <div className="flex items-center flex-1">
                   <AvatarImage
                     src={user.profilePic}
                     alt={user.name}
@@ -196,20 +237,56 @@ export default function AdminDashboard() {
                     height={32}
                     className="w-8 h-8 rounded-full mr-3"
                   />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{user.name}</p>
                     <p className="text-xs text-gray-500">{user.email}</p>
                   </div>
+                  <span className={`px-2 py-1 text-xs rounded-full mr-3 ${
+                    user.role === 'ADMIN' 
+                      ? 'bg-purple-100 text-purple-800' 
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {user.role}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  user.role === 'ADMIN' 
-                    ? 'bg-purple-100 text-purple-800' 
-                    : 'bg-green-100 text-green-800'
-                }`}>
-                  {user.role}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleEditUser(user)}
+                    className="text-indigo-600 hover:text-indigo-800 p-1"
+                    title="Edit user"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  {user.id === session?.user?.id ? (
+                    <button
+                      disabled
+                      className="text-gray-400 p-1 cursor-not-allowed"
+                      title="You cannot delete your own admin account"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDeleteUser(user.id)}
+                      disabled={deletingUserId === user.id}
+                      className="text-red-600 hover:text-red-800 p-1 disabled:opacity-50"
+                      title="Delete user"
+                    >
+                      {deletingUserId === user.id ? (
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
+          </div>
+          
+          <div className="mt-3 text-xs text-gray-500 bg-blue-50 p-3 rounded-md">
+            <strong>Note:</strong> You cannot delete your own admin account or change your role if you&apos;re the only admin. 
+            To prevent system lockout, promote another user to admin first.
           </div>
         </div>
       </div>
@@ -233,6 +310,17 @@ export default function AdminDashboard() {
           <p className="text-sm text-gray-600">Allowlisted</p>
         </div>
       </div>
+
+      {/* Edit User Modal */}
+      <EditUserModal
+        user={editingUser}
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setEditingUser(null)
+        }}
+        onUserUpdated={handleUserUpdated}
+      />
     </div>
   )
 }
