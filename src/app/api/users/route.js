@@ -27,7 +27,7 @@ const getCachedUsers = createCachedFunction(
     })
   },
   [CACHE_TAGS.USERS],
-  CACHE_DURATIONS.MEDIUM,
+  CACHE_DURATIONS.LONG,
   ['users', 'all']
 )
 

@@ -52,7 +52,7 @@ const getCachedPosts = createCachedFunction(
     })
   },
   [CACHE_TAGS.POSTS],
-  CACHE_DURATIONS.SHORT,
+  CACHE_DURATIONS.LONG,
   ['posts', 'all']
 )
 

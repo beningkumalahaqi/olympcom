@@ -14,7 +14,7 @@ const getCachedAllowlist = createCachedFunction(
     })
   },
   [CACHE_TAGS.ALLOWLIST],
-  CACHE_DURATIONS.MEDIUM,
+  CACHE_DURATIONS.LONG,
   ['admin', 'allowlist', 'all']
 )
 

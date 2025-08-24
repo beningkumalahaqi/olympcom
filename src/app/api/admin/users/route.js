@@ -29,7 +29,7 @@ const getCachedAdminUsers = createCachedFunction(
     })
   },
   [CACHE_TAGS.USERS],
-  CACHE_DURATIONS.SHORT,
+  CACHE_DURATIONS.LONG,
   ['admin', 'users', 'all']
 )
 

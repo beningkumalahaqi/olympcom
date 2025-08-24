@@ -26,7 +26,7 @@ const getCachedAnnouncements = createCachedFunction(
     })
   },
   [CACHE_TAGS.ANNOUNCEMENTS],
-  CACHE_DURATIONS.MEDIUM,
+  CACHE_DURATIONS.LONG,
   ['announcements', 'all']
 )
 
