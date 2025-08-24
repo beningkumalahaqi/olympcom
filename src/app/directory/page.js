@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import MemberCard from '@/components/MemberCard'
-import { Users } from 'lucide-react'
+import { Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 
 export default function Directory() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [sortOrder, setSortOrder] = useState('newest') // 'newest' or 'oldest'
 
   useEffect(() => {
     fetchUsers()
@@ -26,6 +27,26 @@ export default function Directory() {
     }
   }
 
+  const sortUsers = (usersToSort, order) => {
+    return [...usersToSort].sort((a, b) => {
+      const dateA = new Date(a.createdAt)
+      const dateB = new Date(b.createdAt)
+      
+      if (order === 'newest') {
+        return dateB - dateA // Newest first
+      } else {
+        return dateA - dateB // Oldest first
+      }
+    })
+  }
+
+  const handleSortChange = (newSortOrder) => {
+    setSortOrder(newSortOrder)
+  }
+
+  // Sort users whenever sortOrder or users change
+  const sortedUsers = sortUsers(users, sortOrder)
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="text-center mb-12">
@@ -33,9 +54,40 @@ export default function Directory() {
           <Users className="w-8 h-8 text-indigo-600 mr-3" />
           <h1 className="text-4xl font-bold text-white">Members Directory</h1>
         </div>
-        <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+        <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-6">
           Meet all the amazing members of the Olympus community
         </p>
+        
+        {/* Sort Controls */}
+        {!loading && users.length > 0 && (
+          <div className="flex items-center justify-center space-x-4">
+            <span className="text-gray-300 text-sm">Sort by:</span>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => handleSortChange('newest')}
+                className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  sortOrder === 'newest'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <ArrowDown className="w-4 h-4 mr-1" />
+                Newest First
+              </button>
+              <button
+                onClick={() => handleSortChange('oldest')}
+                className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  sortOrder === 'oldest'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <ArrowUp className="w-4 h-4 mr-1" />
+                Oldest First
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -51,7 +103,7 @@ export default function Directory() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {users.map((user) => (
+          {sortedUsers.map((user) => (
             <MemberCard key={user.id} user={user} />
           ))}
         </div>
