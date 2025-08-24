@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function POST(request, { params }) {
   try {
@@ -60,5 +61,8 @@ export async function POST(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after comment creation
+    invalidateCache([CACHE_TAGS.POSTS, CACHE_TAGS.COMMENTS, getPostCacheTag(postId)])
   }
 }

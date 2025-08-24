@@ -3,19 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadFile, getPublicUrl } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, createCachedFunction, CACHE_DURATIONS } from '@/lib/cache-server'
 
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const announcements = await prisma.announcement.findMany({
+// Create cached function for fetching announcements
+const getCachedAnnouncements = createCachedFunction(
+  async () => {
+    return await prisma.announcement.findMany({
       include: {
         author: {
           select: {
@@ -31,7 +24,24 @@ export async function GET() {
         { createdAt: 'desc' }  // Then by creation date
       ]
     })
+  },
+  [CACHE_TAGS.ANNOUNCEMENTS],
+  CACHE_DURATIONS.MEDIUM,
+  ['announcements', 'all']
+)
 
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const announcements = await getCachedAnnouncements()
     return NextResponse.json(announcements)
   } catch (error) {
     console.error('Error fetching announcements:', error)
@@ -100,5 +110,8 @@ export async function POST(request) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate announcements cache after successful creation
+    invalidateCache([CACHE_TAGS.ANNOUNCEMENTS])
   }
 }

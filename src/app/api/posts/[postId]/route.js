@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadPostImage, deleteFile } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function PUT(request, { params }) {
   try {
@@ -131,6 +132,9 @@ export async function PUT(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after successful update
+    invalidateCache([CACHE_TAGS.POSTS, getPostCacheTag(postId)])
   }
 }
 
@@ -192,5 +196,8 @@ export async function DELETE(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after successful deletion
+    invalidateCache([CACHE_TAGS.POSTS, getPostCacheTag(postId)])
   }
 }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadProfilePicture } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, getUserCacheTag } from '@/lib/cache-server'
 
 export async function POST(request, { params }) {
   try {
@@ -98,5 +99,8 @@ export async function POST(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate profile and user cache after successful upload
+    invalidateCache([CACHE_TAGS.PROFILE, CACHE_TAGS.USERS, getUserCacheTag(userId)])
   }
 }
