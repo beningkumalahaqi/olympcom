@@ -43,7 +43,9 @@ export async function GET() {
             user: {
               select: {
                 id: true,
-                name: true
+                name: true,
+                profilePic: true,
+                role: true
               }
             }
           }

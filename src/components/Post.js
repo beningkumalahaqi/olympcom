@@ -17,6 +17,7 @@ const reactionTypes = [
 export default function Post({ post, onReaction, onComment, onEdit, onDelete }) {
   const { data: session } = useSession()
   const [showComments, setShowComments] = useState(false)
+  const [showReactions, setShowReactions] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEditingPost, setIsEditingPost] = useState(false)
@@ -48,6 +49,20 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
   const handleReaction = async (type) => {
     if (!session) return
     await onReaction(post.id, type)
+  }
+
+  const toggleReactions = () => {
+    setShowReactions(!showReactions)
+    if (!showReactions) {
+      setShowComments(false) // Close comments when opening reactions
+    }
+  }
+
+  const toggleComments = () => {
+    setShowComments(!showComments)
+    if (!showComments) {
+      setShowReactions(false) // Close reactions when opening comments
+    }
   }
 
   const handleComment = async (e) => {
@@ -240,34 +255,122 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
 
       {/* Reactions */}
       {session && (
-        <div className="flex items-center space-x-4 py-3 border-t border-gray-100">
-          {reactionTypes.map(({ type, icon: Icon, label }) => {
-            const hasReacted = getUserReaction(type)
-            const count = getReactionCount(type)
-            
-            return (
+        <div className="py-3 border-t border-gray-100">
+          {/* Total reactions count (clickable) */}
+          {post.reactions && post.reactions.length > 0 && (
+            <div className="mb-2">
               <button
-                key={type}
-                onClick={() => handleReaction(type)}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
-                  hasReacted
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'hover:bg-gray-100 text-gray-600'
-                }`}
+                onClick={toggleReactions}
+                className="text-sm text-gray-500 hover:text-gray-700 hover:underline"
               >
-                <span className="text-base">{label}</span>
-                {count > 0 && <span className="font-medium">{count}</span>}
+                {post.reactions.length} {post.reactions.length === 1 ? 'reaction' : 'reactions'}
               </button>
-            )
-          })}
+            </div>
+          )}
           
-          <button
-            onClick={() => setShowComments(!showComments)}
-            className="flex items-center space-x-1 px-3 py-1 rounded-full text-sm hover:bg-gray-100 text-gray-600"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>{post.comments?.length || 0}</span>
-          </button>
+          {/* Reaction buttons */}
+          <div className="flex items-center space-x-4">
+            {reactionTypes.map(({ type, icon: Icon, label }) => {
+              const hasReacted = getUserReaction(type)
+              const count = getReactionCount(type)
+              
+              return (
+                <button
+                  key={type}
+                  onClick={() => handleReaction(type)}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
+                    hasReacted
+                      ? 'bg-indigo-100 text-indigo-700'
+                      : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  <span className="text-base">{label}</span>
+                  {count > 0 && <span className="font-medium">{count}</span>}
+                </button>
+              )
+            })}
+            
+            <button
+              onClick={toggleComments}
+              className="flex items-center space-x-1 px-3 py-1 rounded-full text-sm hover:bg-gray-100 text-gray-600"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>{post.comments?.length || 0}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reactions Detail Section */}
+      {showReactions && post.reactions && post.reactions.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">
+            Reactions ({post.reactions.length})
+          </h4>
+          
+          {/* Group reactions by type */}
+          {(() => {
+            const groupedReactions = post.reactions.reduce((acc, reaction) => {
+              if (!acc[reaction.type]) {
+                acc[reaction.type] = []
+              }
+              acc[reaction.type].push(reaction)
+              return acc
+            }, {})
+
+            const reactionEmojis = {
+              like: '👍',
+              love: '❤️',
+              laugh: '😂',
+              star: '⭐'
+            }
+
+            return (
+              <div className="space-y-4">
+                {Object.entries(groupedReactions).map(([reactionType, reactionUsers]) => (
+                  <div key={reactionType} className="space-y-2">
+                    {/* Reaction Type Header */}
+                    <div className="flex items-center space-x-2 text-sm font-medium text-gray-700">
+                      <span className="text-lg">{reactionEmojis[reactionType]}</span>
+                      <span className="capitalize">{reactionType}</span>
+                      <span className="text-gray-500">({reactionUsers.length})</span>
+                    </div>
+                    
+                    {/* Users who reacted */}
+                    <div className="space-y-2 ml-6">
+                      {reactionUsers.map((reaction) => (
+                        <div
+                          key={`${reaction.userId}-${reaction.type}`}
+                          className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg"
+                        >
+                          <AvatarImage
+                            src={reaction.user.profilePic}
+                            alt={reaction.user.name}
+                            width={32}
+                            height={32}
+                            className="rounded-full"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {reaction.user.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              reacted with {reactionEmojis[reaction.type]}
+                            </p>
+                          </div>
+                          {reaction.user.role === 'ADMIN' && (
+                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
 
