@@ -5,6 +5,8 @@ import { prisma } from '@/lib/db'
 import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function POST(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -15,7 +17,6 @@ export async function POST(request, { params }) {
       )
     }
 
-    const { postId } = await params
     const { content } = await request.json()
 
     if (!content || content.trim().length === 0) {

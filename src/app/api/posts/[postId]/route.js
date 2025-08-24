@@ -6,6 +6,8 @@ import { uploadPostImage, deleteFile } from '@/lib/supabase'
 import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function PUT(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -16,7 +18,6 @@ export async function PUT(request, { params }) {
       )
     }
 
-    const { postId } = await params
     const { content, mediaUrl, removeImage } = await request.json()
 
     if (!content || content.trim().length === 0) {
@@ -139,6 +140,8 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -148,8 +151,6 @@ export async function DELETE(request, { params }) {
         { status: 401 }
       )
     }
-
-    const { postId } = await params
 
     // Get the existing post
     const existingPost = await prisma.post.findUnique({

@@ -43,6 +43,8 @@ export async function GET(request, { params }) {
 
 // PUT - Update user details (admin only)
 export async function PUT(request, { params }) {
+  const { userId } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -50,7 +52,6 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { userId } = params
     const body = await request.json()
     const { email, name, bio, profilePic, role, password } = body
 
@@ -131,6 +132,8 @@ export async function PUT(request, { params }) {
 
 // DELETE - Delete user (admin only)
 export async function DELETE(request, { params }) {
+  const { userId } = params
+  
   try {
     const session = await getServerSession(authOptions)
     

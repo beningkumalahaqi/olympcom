@@ -5,6 +5,8 @@ import { prisma } from '@/lib/db'
 import { invalidateCache, CACHE_TAGS } from '@/lib/cache-server'
 
 export async function DELETE(request, { params }) {
+  const { id } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -14,8 +16,6 @@ export async function DELETE(request, { params }) {
         { status: 401 }
       )
     }
-
-    const { id } = await params
 
     const allowlistEntry = await prisma.allowlist.findUnique({
       where: { id }

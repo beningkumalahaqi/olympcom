@@ -6,6 +6,8 @@ import { uploadProfilePicture } from '@/lib/supabase'
 import { invalidateCache, CACHE_TAGS, getUserCacheTag } from '@/lib/cache-server'
 
 export async function POST(request, { params }) {
+  const { userId } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -16,7 +18,6 @@ export async function POST(request, { params }) {
       )
     }
 
-    const { userId } = params
     const formData = await request.formData()
     const file = formData.get('profilePic')
 
