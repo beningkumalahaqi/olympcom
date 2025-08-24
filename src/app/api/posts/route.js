@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/db'
+import { prisma, withDatabaseRetry } from '@/lib/db'
 import { uploadFile, getPublicUrl } from '@/lib/supabase'
 
 export async function GET() {
@@ -15,50 +15,68 @@ export async function GET() {
       )
     }
 
-    const posts = await prisma.post.findMany({
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            profilePic: true
-          }
-        },
-        comments: {
-          include: {
-            author: {
-              select: {
-                id: true,
-                name: true,
-                profilePic: true
-              }
+    const posts = await withDatabaseRetry(async () => {
+      return await prisma.post.findMany({
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              profilePic: true
             }
           },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        },
-        reactions: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                profilePic: true,
-                role: true
+          comments: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  profilePic: true
+                }
+              }
+            },
+            orderBy: {
+              createdAt: 'asc'
+            }
+          },
+          reactions: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  profilePic: true,
+                  role: true
+                }
               }
             }
           }
+        },
+        orderBy: {
+          createdAt: 'desc'
         }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      })
     })
 
     return NextResponse.json(posts)
   } catch (error) {
     console.error('Error fetching posts:', error)
+    
+    // Return more specific error information
+    if (error.code === 'P2024') {
+      return NextResponse.json(
+        { error: 'Database connection timeout. Please try again.' },
+        { status: 503 }
+      )
+    }
+    
+    if (error.message?.includes('prepared statement')) {
+      return NextResponse.json(
+        { error: 'Database connection issue. Please refresh and try again.' },
+        { status: 503 }
+      )
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -93,38 +111,56 @@ export async function POST(request) {
       )
     }
 
-    const post = await prisma.post.create({
-      data: {
-        content: content.trim(),
-        mediaUrl: mediaUrl || null,
-        authorId: session.user.id
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            profilePic: true
-          }
+    const post = await withDatabaseRetry(async () => {
+      return await prisma.post.create({
+        data: {
+          content: content.trim(),
+          mediaUrl: mediaUrl || null,
+          authorId: session.user.id
         },
-        comments: {
-          include: {
-            author: {
-              select: {
-                id: true,
-                name: true,
-                profilePic: true
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              profilePic: true
+            }
+          },
+          comments: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  profilePic: true
+                }
               }
             }
-          }
-        },
-        reactions: true
-      }
+          },
+          reactions: true
+        }
+      })
     })
 
     return NextResponse.json(post)
   } catch (error) {
     console.error('Error creating post:', error)
+    
+    // Return more specific error information
+    if (error.code === 'P2024') {
+      return NextResponse.json(
+        { error: 'Database connection timeout. Please try again.' },
+        { status: 503 }
+      )
+    }
+    
+    if (error.message?.includes('prepared statement')) {
+      return NextResponse.json(
+        { error: 'Database connection issue. Please refresh and try again.' },
+        { status: 503 }
+      )
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
