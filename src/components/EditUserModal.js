@@ -80,15 +80,16 @@ export default function EditUserModal({ user, isOpen, onClose, onUserUpdated }) 
     if (!profilePicFile) return null
 
     const formData = new FormData()
-    formData.append('image', profilePicFile)
+    formData.append('profilePic', profilePicFile)
 
-    const response = await fetch('/api/profile/upload', {
+    const response = await fetch(`/api/admin/users/${user.id}/upload-profile`, {
       method: 'POST',
       body: formData
     })
 
     if (!response.ok) {
-      throw new Error('Failed to upload image')
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to upload image')
     }
 
     const data = await response.json()
