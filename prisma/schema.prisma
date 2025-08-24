@@ -26,6 +26,7 @@ model User {
   posts       Post[]
   comments    Comment[]
   reactions   Reaction[]
+  announcements Announcement[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -69,4 +70,15 @@ model Reaction {
   createdAt DateTime @default(now())
   
   @@unique([postId, userId, type])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  content   String
+  mediaUrl  String?
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -7,7 +7,7 @@ import AvatarImage from './AvatarImage'
 import { useSession, signOut } from 'next-auth/react'
 import { Menu, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
-import { ChevronDown, User, LogOut, Settings, Home, Users, Menu as MenuIcon, X, MessageSquare } from 'lucide-react'
+import { ChevronDown, User, LogOut, Settings, Home, Users, Menu as MenuIcon, X, MessageSquare, Megaphone } from 'lucide-react'
 
 export default function Navigation() {
   const { data: session, status } = useSession()
@@ -50,10 +50,16 @@ export default function Navigation() {
               Directory
             </Link>
             {session && (
-              <Link href="/feed" className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Feed
-              </Link>
+              <>
+                <Link href="/announcements" className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                  <Megaphone className="w-4 h-4 mr-2" />
+                  Announcements
+                </Link>
+                <Link href="/feed" className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Feed
+                </Link>
+              </>
             )}
           </div>
 
@@ -177,7 +183,7 @@ export default function Navigation() {
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
               <Link
                 href="/"
-                className="text-gray-900 hover:text-indigo-600 block px-3 py-2 rounded-md text-base font-medium flex items-center"
+                className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <Home className="w-5 h-5 mr-3" />
@@ -185,21 +191,31 @@ export default function Navigation() {
               </Link>
               <Link
                 href="/directory"
-                className="text-gray-900 hover:text-indigo-600 block px-3 py-2 rounded-md text-base font-medium flex items-center"
+                className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <Users className="w-5 h-5 mr-3" />
                 Directory
               </Link>
               {session && (
-                <Link
-                  href="/feed"
-                  className="text-gray-900 hover:text-indigo-600 block px-3 py-2 rounded-md text-base font-medium flex items-center"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <MessageSquare className="w-5 h-5 mr-3" />
-                  Feed
-                </Link>
+                <>
+                  <Link
+                    href="/announcements"
+                    className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Megaphone className="w-5 h-5 mr-3" />
+                    Announcements
+                  </Link>
+                  <Link
+                    href="/feed"
+                    className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <MessageSquare className="w-5 h-5 mr-3" />
+                    Feed
+                  </Link>
+                </>
               )}
               
               {session && (
@@ -221,7 +237,7 @@ export default function Navigation() {
                     <div className="mt-3 space-y-1 px-2">
                       <Link
                         href="/profile"
-                        className="text-gray-700 hover:text-indigo-600 block px-3 py-2 rounded-md text-base font-medium flex items-center"
+                        className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
                         <User className="w-5 h-5 mr-3" />
@@ -231,7 +247,7 @@ export default function Navigation() {
                       {session.user.role === 'ADMIN' && (
                         <Link
                           href="/admin"
-                          className="text-gray-700 hover:text-indigo-600 block px-3 py-2 rounded-md text-base font-medium flex items-center"
+                          className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
                           onClick={() => setIsMobileMenuOpen(false)}
                         >
                           <Settings className="w-5 h-5 mr-3" />
@@ -244,7 +260,7 @@ export default function Navigation() {
                           signOut()
                           setIsMobileMenuOpen(false)
                         }}
-                        className="text-gray-700 hover:text-indigo-600 block w-full text-left px-3 py-2 rounded-md text-base font-medium flex items-center"
+                        className="text-gray-700 hover:text-indigo-600 w-full text-left px-3 py-2 rounded-md text-base font-medium flex items-center"
                       >
                         <LogOut className="w-5 h-5 mr-3" />
                         Logout
