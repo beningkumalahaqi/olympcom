@@ -3,8 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadPostImage, deleteFile } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function PUT(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -15,7 +18,6 @@ export async function PUT(request, { params }) {
       )
     }
 
-    const { postId } = await params
     const { content, mediaUrl, removeImage } = await request.json()
 
     if (!content || content.trim().length === 0) {
@@ -131,10 +133,15 @@ export async function PUT(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after successful update
+    invalidateCache([CACHE_TAGS.POSTS, getPostCacheTag(postId)])
   }
 }
 
 export async function DELETE(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -144,8 +151,6 @@ export async function DELETE(request, { params }) {
         { status: 401 }
       )
     }
-
-    const { postId } = await params
 
     // Get the existing post
     const existingPost = await prisma.post.findUnique({
@@ -192,5 +197,8 @@ export async function DELETE(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after successful deletion
+    invalidateCache([CACHE_TAGS.POSTS, getPostCacheTag(postId)])
   }
 }

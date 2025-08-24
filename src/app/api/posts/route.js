@@ -3,19 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma, withDatabaseRetry } from '@/lib/db'
 import { uploadFile, getPublicUrl } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, createCachedFunction, CACHE_DURATIONS } from '@/lib/cache-server'
 
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const posts = await withDatabaseRetry(async () => {
+// Create cached function for fetching posts
+const getCachedPosts = createCachedFunction(
+  async () => {
+    return await withDatabaseRetry(async () => {
       return await prisma.post.findMany({
         include: {
           author: {
@@ -57,7 +50,24 @@ export async function GET() {
         }
       })
     })
+  },
+  [CACHE_TAGS.POSTS],
+  CACHE_DURATIONS.LONG,
+  ['posts', 'all']
+)
 
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const posts = await getCachedPosts()
     return NextResponse.json(posts)
   } catch (error) {
     console.error('Error fetching posts:', error)
@@ -165,5 +175,8 @@ export async function POST(request) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache after successful creation
+    invalidateCache([CACHE_TAGS.POSTS])
   }
 }

@@ -3,8 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { uploadFile, getPublicUrl, deleteFile } from '@/lib/supabase'
+import { invalidateCache, CACHE_TAGS, getAnnouncementCacheTag } from '@/lib/cache-server'
 
 export async function PUT(request, { params }) {
+  const { id } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -15,7 +18,6 @@ export async function PUT(request, { params }) {
       )
     }
 
-    const { id } = params
     const formData = await request.formData()
     const content = formData.get('content')
     const image = formData.get('image')
@@ -84,10 +86,15 @@ export async function PUT(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate announcements cache after successful update
+    invalidateCache([CACHE_TAGS.ANNOUNCEMENTS, getAnnouncementCacheTag(id)])
   }
 }
 
 export async function DELETE(request, { params }) {
+  const { id } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -97,8 +104,6 @@ export async function DELETE(request, { params }) {
         { status: 403 }
       )
     }
-
-    const { id } = params
 
     // Get announcement to delete associated image
     const announcement = await prisma.announcement.findUnique({
@@ -130,5 +135,8 @@ export async function DELETE(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate announcements cache after successful deletion
+    invalidateCache([CACHE_TAGS.ANNOUNCEMENTS, getAnnouncementCacheTag(id)])
   }
 }

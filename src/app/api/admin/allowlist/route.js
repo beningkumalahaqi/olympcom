@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { invalidateCache, CACHE_TAGS, createCachedFunction, CACHE_DURATIONS } from '@/lib/cache-server'
+
+// Create cached function for fetching allowlist
+const getCachedAllowlist = createCachedFunction(
+  async () => {
+    return await prisma.allowlist.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+  },
+  [CACHE_TAGS.ALLOWLIST],
+  CACHE_DURATIONS.LONG,
+  ['admin', 'allowlist', 'all']
+)
 
 export async function GET() {
   try {
@@ -14,12 +29,7 @@ export async function GET() {
       )
     }
 
-    const allowlist = await prisma.allowlist.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
-
+    const allowlist = await getCachedAllowlist()
     return NextResponse.json(allowlist)
   } catch (error) {
     console.error('Error fetching allowlist:', error)
@@ -76,5 +86,8 @@ export async function POST(request) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate allowlist cache after successful addition
+    invalidateCache([CACHE_TAGS.ALLOWLIST])
   }
 }
