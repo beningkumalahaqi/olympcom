@@ -26,6 +26,7 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
   const [showPostMenu, setShowPostMenu] = useState(false)
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editCommentContent, setEditCommentContent] = useState('')
+  const [reactingToType, setReactingToType] = useState(null) // Track which reaction is being processed
   const menuRef = useRef(null)
 
   // Close menu when clicking outside
@@ -49,7 +50,9 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
 
   const handleReaction = async (type) => {
     if (!session) return
+    setReactingToType(type) // Show loading state for this reaction
     await onReaction(post.id, type)
+    setReactingToType(null) // Clear loading state
   }
 
   const toggleReactions = () => {
@@ -299,19 +302,27 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             {reactionTypes.map(({ type, icon: Icon, label }) => {
               const hasReacted = getUserReaction(type)
               const count = getReactionCount(type)
+              const isProcessing = reactingToType === type
               
               return (
                 <button
                   key={type}
                   onClick={() => handleReaction(type)}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
+                  disabled={isProcessing}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-all duration-200 ${
                     hasReacted
                       ? 'bg-indigo-100 text-indigo-700'
                       : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  } ${isProcessing ? 'opacity-75 scale-95' : 'hover:scale-105'} disabled:cursor-not-allowed`}
                 >
-                  <span className="text-base">{label}</span>
-                  {count > 0 && <span className="font-medium">{count}</span>}
+                  <span className={`text-base ${isProcessing ? 'animate-pulse' : ''}`}>
+                    {label}
+                  </span>
+                  {count > 0 && (
+                    <span className={`font-medium ${isProcessing ? 'animate-pulse' : ''}`}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -436,17 +447,23 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
 
           {/* Comments List */}
           <div className="space-y-3">
-            {post.comments?.map((comment) => (
-              <div key={comment.id} className="flex space-x-3">
-                <AvatarImage
-                  src={comment.author.profilePic}
-                  alt={comment.author.name}
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
-                <div className="flex-1">
-                  {editingCommentId === comment.id ? (
+            {post.comments?.map((comment) => {
+              const isOptimistic = comment.id.startsWith('temp-')
+              
+              return (
+                <div 
+                  key={comment.id} 
+                  className={`flex space-x-3 ${isOptimistic ? 'opacity-75 animate-pulse' : ''}`}
+                >
+                  <AvatarImage
+                    src={comment.author.profilePic}
+                    alt={comment.author.name}
+                    width={32}
+                    height={32}
+                    className="rounded-full"
+                  />
+                  <div className="flex-1">
+                    {editingCommentId === comment.id ? (
                     <div className="space-y-2">
                       <textarea
                         value={editCommentContent}
@@ -517,7 +534,8 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
