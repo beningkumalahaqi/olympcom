@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
 
 export async function POST(request, { params }) {
+  const { postId } = await params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -14,7 +17,6 @@ export async function POST(request, { params }) {
       )
     }
 
-    const { postId } = await params
     const { type } = await request.json()
 
     if (!type) {
@@ -78,5 +80,8 @@ export async function POST(request, { params }) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate posts cache and specific post cache after reaction change
+    invalidateCache([CACHE_TAGS.POSTS, CACHE_TAGS.REACTIONS, getPostCacheTag(postId)])
   }
 }

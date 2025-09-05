@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Heart, MessageCircle, Laugh, ThumbsUp, Star, MoreHorizontal, Edit2, Trash2, Save, X } from 'lucide-react'
 import Image from 'next/image'
 import AvatarImage from './AvatarImage'
+import OptimizedVideo from './OptimizedVideo'
 
 const reactionTypes = [
   { type: 'like', icon: ThumbsUp, label: '👍' },
@@ -25,6 +26,7 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
   const [showPostMenu, setShowPostMenu] = useState(false)
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editCommentContent, setEditCommentContent] = useState('')
+  const [reactingToType, setReactingToType] = useState(null) // Track which reaction is being processed
   const menuRef = useRef(null)
 
   // Close menu when clicking outside
@@ -48,7 +50,9 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
 
   const handleReaction = async (type) => {
     if (!session) return
+    setReactingToType(type) // Show loading state for this reaction
     await onReaction(post.id, type)
+    setReactingToType(null) // Clear loading state
   }
 
   const toggleReactions = () => {
@@ -160,7 +164,12 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             <h4 className="font-semibold text-gray-900">{post.author.name}</h4>
             <p className="text-sm text-gray-500">
               {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-              {post.updatedAt !== post.createdAt && (
+              {(() => {
+                const createdAt = new Date(post.createdAt).getTime()
+                const updatedAt = new Date(post.updatedAt).getTime()
+                // Only show "edited" if updated more than 1 second after creation
+                return updatedAt > createdAt + 1000
+              })() && (
                 <span className="text-xs text-gray-400 ml-1">(edited)</span>
               )}
             </p>
@@ -185,9 +194,9 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                     setEditPostContent(post.content)
                     setShowPostMenu(false)
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center text-black"
                 >
-                  <Edit2 className="w-4 h-4 mr-2" />
+                  <Edit2 className="w-4 h-4 mr-2 text-black" />
                   Edit Post
                 </button>
                 <button
@@ -210,7 +219,7 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             <textarea
               value={editPostContent}
               onChange={(e) => setEditPostContent(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
               rows={4}
               maxLength={2000}
             />
@@ -240,13 +249,38 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
             {post.mediaUrl && (
               <div className="mt-3">
-                <Image
-                  src={post.mediaUrl}
-                  alt="Post media"
-                  width={500}
-                  height={300}
-                  className="rounded-lg max-w-full h-auto"
-                />
+                {(post.mediaType === 'video' || post.mediaUrl.includes('/videos/')) ? (
+                  <OptimizedVideo
+                    src={post.mediaUrl}
+                    controls
+                    className="rounded-lg max-w-full h-auto"
+                    style={{ maxHeight: '400px', width: '100%' }}
+                    preload="metadata"
+                    playsInline
+                    muted={false}
+                    onError={(e) => {
+                      console.error('Video load error:', e);
+                      console.error('Video src:', post.mediaUrl);
+                      console.error('Media type:', post.mediaType);
+                    }}
+                    onLoadStart={() => console.log('Video load started for:', post.mediaUrl)}
+                    onCanPlay={() => console.log('Video can play')}
+                  >
+                    <source src={post.mediaUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </OptimizedVideo>
+                ) : (
+                  <Image
+                    src={post.mediaUrl}
+                    alt="Post media"
+                    width={500}
+                    height={300}
+                    className="rounded-lg max-w-full h-auto"
+                    priority={false}
+                    placeholder="blur"
+                    blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                  />
+                )}
               </div>
             )}
           </>
@@ -273,19 +307,27 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             {reactionTypes.map(({ type, icon: Icon, label }) => {
               const hasReacted = getUserReaction(type)
               const count = getReactionCount(type)
+              const isProcessing = reactingToType === type
               
               return (
                 <button
                   key={type}
                   onClick={() => handleReaction(type)}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
+                  disabled={isProcessing}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-all duration-200 ${
                     hasReacted
                       ? 'bg-indigo-100 text-indigo-700'
                       : 'hover:bg-gray-100 text-gray-600'
-                  }`}
+                  } ${isProcessing ? 'opacity-75 scale-95' : 'hover:scale-105'} disabled:cursor-not-allowed`}
                 >
-                  <span className="text-base">{label}</span>
-                  {count > 0 && <span className="font-medium">{count}</span>}
+                  <span className={`text-base ${isProcessing ? 'animate-pulse' : ''}`}>
+                    {label}
+                  </span>
+                  {count > 0 && (
+                    <span className={`font-medium ${isProcessing ? 'animate-pulse' : ''}`}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -410,22 +452,28 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
 
           {/* Comments List */}
           <div className="space-y-3">
-            {post.comments?.map((comment) => (
-              <div key={comment.id} className="flex space-x-3">
-                <AvatarImage
-                  src={comment.author.profilePic}
-                  alt={comment.author.name}
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
-                <div className="flex-1">
-                  {editingCommentId === comment.id ? (
+            {post.comments?.map((comment) => {
+              const isOptimistic = comment.id.startsWith('temp-')
+              
+              return (
+                <div 
+                  key={comment.id} 
+                  className={`flex space-x-3 ${isOptimistic ? 'opacity-75 animate-pulse' : ''}`}
+                >
+                  <AvatarImage
+                    src={comment.author.profilePic}
+                    alt={comment.author.name}
+                    width={32}
+                    height={32}
+                    className="rounded-full"
+                  />
+                  <div className="flex-1">
+                    {editingCommentId === comment.id ? (
                     <div className="space-y-2">
                       <textarea
                         value={editCommentContent}
                         onChange={(e) => setEditCommentContent(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
                         rows={2}
                         maxLength={1000}
                       />
@@ -464,10 +512,10 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                                   setEditingCommentId(comment.id)
                                   setEditCommentContent(comment.content)
                                 }}
-                                className="p-1 rounded hover:bg-gray-200"
+                                className="p-1 rounded hover:bg-gray-200 text-black"
                                 title="Edit comment"
                               >
-                                <Edit2 className="w-3 h-3 text-gray-500" />
+                                <Edit2 className="w-3 h-3 text-black" />
                               </button>
                               <button
                                 onClick={() => handleDeleteComment(comment.id)}
@@ -483,7 +531,12 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                        {comment.updatedAt !== comment.createdAt && (
+                        {(() => {
+                          const createdAt = new Date(comment.createdAt).getTime()
+                          const updatedAt = new Date(comment.updatedAt).getTime()
+                          // Only show "edited" if updated more than 1 second after creation
+                          return updatedAt > createdAt + 1000
+                        })() && (
                           <span className="text-xs text-gray-400 ml-1">(edited)</span>
                         )}
                       </p>
@@ -491,7 +544,8 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

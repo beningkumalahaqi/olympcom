@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { invalidateCache, CACHE_TAGS, getUserCacheTag } from '@/lib/cache-server'
 
 export async function GET(request) {
   try {
@@ -127,5 +128,8 @@ export async function PATCH(request) {
       { error: 'Internal server error' },
       { status: 500 }
     )
+  } finally {
+    // Invalidate profile cache and user cache after successful update
+    invalidateCache([CACHE_TAGS.PROFILE, CACHE_TAGS.USERS, getUserCacheTag(targetUserId)])
   }
 }

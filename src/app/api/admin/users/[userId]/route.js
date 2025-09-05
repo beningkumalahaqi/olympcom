@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
+import { invalidateCache, CACHE_TAGS, getUserCacheTag } from '@/lib/cache-server'
 
 // GET - Get specific user details (admin only)
 export async function GET(request, { params }) {
@@ -42,6 +43,8 @@ export async function GET(request, { params }) {
 
 // PUT - Update user details (admin only)
 export async function PUT(request, { params }) {
+  const { userId } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -49,7 +52,6 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { userId } = params
     const body = await request.json()
     const { email, name, bio, profilePic, role, password } = body
 
@@ -122,11 +124,16 @@ export async function PUT(request, { params }) {
   } catch (error) {
     console.error('Error updating user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } finally {
+    // Invalidate users cache and specific user cache after successful update
+    invalidateCache([CACHE_TAGS.USERS, getUserCacheTag(userId)])
   }
 }
 
 // DELETE - Delete user (admin only)
 export async function DELETE(request, { params }) {
+  const { userId } = params
+  
   try {
     const session = await getServerSession(authOptions)
     
@@ -182,5 +189,8 @@ export async function DELETE(request, { params }) {
   } catch (error) {
     console.error('Error deleting user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } finally {
+    // Invalidate users cache and specific user cache after successful deletion
+    invalidateCache([CACHE_TAGS.USERS, getUserCacheTag(userId), CACHE_TAGS.POSTS])
   }
 }

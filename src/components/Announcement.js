@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Pin, PinOff, Edit2, Trash2, Save, X, MoreHorizontal } from 'lucide-react'
 import Image from 'next/image'
 import AvatarImage from './AvatarImage'
+import OptimizedVideo from './OptimizedVideo'
 
 export default function Announcement({ announcement, onEdit, onDelete, onPin }) {
   const { data: session } = useSession()
@@ -190,13 +191,38 @@ export default function Announcement({ announcement, onEdit, onDelete, onPin }) 
             <p className="text-gray-800 whitespace-pre-wrap text-lg">{announcement.content}</p>
             {announcement.mediaUrl && (
               <div className="mt-4">
-                <Image
-                  src={announcement.mediaUrl}
-                  alt="Announcement media"
-                  width={600}
-                  height={400}
-                  className="rounded-lg max-w-full h-auto"
-                />
+                {(announcement.mediaType === 'video' || announcement.mediaUrl.includes('/videos/')) ? (
+                  <OptimizedVideo
+                    src={announcement.mediaUrl}
+                    controls
+                    className="rounded-lg max-w-full h-auto"
+                    style={{ maxHeight: '400px', width: '100%' }}
+                    preload="metadata"
+                    playsInline
+                    muted={false}
+                    onError={(e) => {
+                      console.error('Video load error:', e);
+                      console.error('Video src:', announcement.mediaUrl);
+                      console.error('Media type:', announcement.mediaType);
+                    }}
+                    onLoadStart={() => console.log('Video load started for:', announcement.mediaUrl)}
+                    onCanPlay={() => console.log('Video can play')}
+                  >
+                    <source src={announcement.mediaUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </OptimizedVideo>
+                ) : (
+                  <Image
+                    src={announcement.mediaUrl}
+                    alt="Announcement media"
+                    width={600}
+                    height={400}
+                    className="rounded-lg max-w-full h-auto"
+                    priority={false}
+                    placeholder="blur"
+                    blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                  />
+                )}
               </div>
             )}
           </>
