@@ -37,6 +37,49 @@ export default function Feed() {
   }
 
   const handleReaction = async (postId, type) => {
+    if (!session?.user?.id) return
+
+    // Find the post to update
+    const postIndex = posts.findIndex(p => p.id === postId)
+    if (postIndex === -1) return
+
+    const post = posts[postIndex]
+    const existingReaction = post.reactions?.find(r => 
+      r.userId === session.user.id && r.type === type
+    )
+
+    // Optimistic update - immediately update the UI
+    setPosts(prevPosts => {
+      const newPosts = [...prevPosts]
+      const targetPost = { ...newPosts[postIndex] }
+      
+      if (existingReaction) {
+        // Remove reaction optimistically
+        targetPost.reactions = targetPost.reactions.filter(r => 
+          !(r.userId === session.user.id && r.type === type)
+        )
+      } else {
+        // Add reaction optimistically
+        const newReaction = {
+          id: `temp-${Date.now()}`, // Temporary ID
+          userId: session.user.id,
+          type: type,
+          user: {
+            id: session.user.id,
+            name: session.user.name,
+            profilePic: session.user.profilePic,
+            role: session.user.role
+          },
+          createdAt: new Date().toISOString()
+        }
+        targetPost.reactions = [...(targetPost.reactions || []), newReaction]
+      }
+      
+      newPosts[postIndex] = targetPost
+      return newPosts
+    })
+
+    // Background server update
     try {
       const response = await fetch(`/api/posts/${postId}/reactions`, {
         method: 'POST',
@@ -46,16 +89,88 @@ export default function Feed() {
         body: JSON.stringify({ type })
       })
 
-      if (response.ok) {
-        // Refresh posts to get updated reactions
-        fetchPosts()
+      if (!response.ok) {
+        // Revert optimistic update on error
+        console.error('Reaction failed, reverting...')
+        setPosts(prevPosts => {
+          const newPosts = [...prevPosts]
+          const targetPost = { ...newPosts[postIndex] }
+          
+          if (existingReaction) {
+            // Re-add the reaction that failed to remove
+            targetPost.reactions = [...(targetPost.reactions || []), existingReaction]
+          } else {
+            // Remove the reaction that failed to add
+            targetPost.reactions = targetPost.reactions.filter(r => 
+              !(r.userId === session.user.id && r.type === type)
+            )
+          }
+          
+          newPosts[postIndex] = targetPost
+          return newPosts
+        })
+        
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Error handling reaction:', errorData.error)
+      } else {
+        // Optionally refresh with server data to sync any discrepancies
+        // For now, we trust the optimistic update worked
+        console.log('Reaction updated successfully')
       }
     } catch (error) {
       console.error('Error handling reaction:', error)
+      
+      // Revert optimistic update on network error
+      setPosts(prevPosts => {
+        const newPosts = [...prevPosts]
+        const targetPost = { ...newPosts[postIndex] }
+        
+        if (existingReaction) {
+          // Re-add the reaction that failed to remove
+          targetPost.reactions = [...(targetPost.reactions || []), existingReaction]
+        } else {
+          // Remove the reaction that failed to add
+          targetPost.reactions = targetPost.reactions.filter(r => 
+            !(r.userId === session.user.id && r.type === type)
+          )
+        }
+        
+        newPosts[postIndex] = targetPost
+        return newPosts
+      })
     }
   }
 
   const handleComment = async (postId, content) => {
+    if (!session?.user?.id || !content.trim()) return
+
+    // Find the post to update
+    const postIndex = posts.findIndex(p => p.id === postId)
+    if (postIndex === -1) return
+
+    // Create optimistic comment
+    const optimisticComment = {
+      id: `temp-${Date.now()}`, // Temporary ID
+      content: content.trim(),
+      authorId: session.user.id,
+      author: {
+        id: session.user.id,
+        name: session.user.name,
+        profilePic: session.user.profilePic
+      },
+      createdAt: new Date().toISOString()
+    }
+
+    // Optimistic update - immediately add comment to UI
+    setPosts(prevPosts => {
+      const newPosts = [...prevPosts]
+      const targetPost = { ...newPosts[postIndex] }
+      targetPost.comments = [...(targetPost.comments || []), optimisticComment]
+      newPosts[postIndex] = targetPost
+      return newPosts
+    })
+
+    // Background server update
     try {
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
@@ -66,11 +181,48 @@ export default function Feed() {
       })
 
       if (response.ok) {
-        // Refresh posts to get updated comments
-        fetchPosts()
+        // Get the real comment from server response
+        const newComment = await response.json()
+        
+        // Replace optimistic comment with real comment
+        setPosts(prevPosts => {
+          const newPosts = [...prevPosts]
+          const targetPost = { ...newPosts[postIndex] }
+          targetPost.comments = targetPost.comments.map(comment => 
+            comment.id === optimisticComment.id ? newComment : comment
+          )
+          newPosts[postIndex] = targetPost
+          return newPosts
+        })
+      } else {
+        // Remove optimistic comment on error
+        console.error('Comment failed, removing optimistic comment...')
+        setPosts(prevPosts => {
+          const newPosts = [...prevPosts]
+          const targetPost = { ...newPosts[postIndex] }
+          targetPost.comments = targetPost.comments.filter(comment => 
+            comment.id !== optimisticComment.id
+          )
+          newPosts[postIndex] = targetPost
+          return newPosts
+        })
+        
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Error adding comment:', errorData.error)
       }
     } catch (error) {
       console.error('Error adding comment:', error)
+      
+      // Remove optimistic comment on network error
+      setPosts(prevPosts => {
+        const newPosts = [...prevPosts]
+        const targetPost = { ...newPosts[postIndex] }
+        targetPost.comments = targetPost.comments.filter(comment => 
+          comment.id !== optimisticComment.id
+        )
+        newPosts[postIndex] = targetPost
+        return newPosts
+      })
     }
   }
 
