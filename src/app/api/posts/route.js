@@ -105,7 +105,7 @@ export async function POST(request) {
       )
     }
 
-    const { content, mediaUrl } = await request.json()
+    const { content, mediaUrl, mediaType } = await request.json()
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json(
@@ -126,6 +126,7 @@ export async function POST(request) {
         data: {
           content: content.trim(),
           mediaUrl: mediaUrl || null,
+          mediaType: mediaType || null,
           authorId: session.user.id
         },
         include: {
