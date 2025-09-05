@@ -45,6 +45,7 @@ model Post {
   authorId  String
   content   String
   mediaUrl  String?
+  mediaType String?   // 'image' or 'video'
   comments  Comment[]
   reactions Reaction[]
   createdAt DateTime  @default(now())
@@ -79,6 +80,7 @@ model Announcement {
   authorId  String
   content   String
   mediaUrl  String?
+  mediaType String?  // 'image' or 'video'
   isPinned  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
