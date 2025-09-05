@@ -164,7 +164,12 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
             <h4 className="font-semibold text-gray-900">{post.author.name}</h4>
             <p className="text-sm text-gray-500">
               {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-              {post.updatedAt !== post.createdAt && (
+              {(() => {
+                const createdAt = new Date(post.createdAt).getTime()
+                const updatedAt = new Date(post.updatedAt).getTime()
+                // Only show "edited" if updated more than 1 second after creation
+                return updatedAt > createdAt + 1000
+              })() && (
                 <span className="text-xs text-gray-400 ml-1">(edited)</span>
               )}
             </p>
@@ -526,7 +531,12 @@ export default function Post({ post, onReaction, onComment, onEdit, onDelete }) 
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                        {comment.updatedAt !== comment.createdAt && (
+                        {(() => {
+                          const createdAt = new Date(comment.createdAt).getTime()
+                          const updatedAt = new Date(comment.updatedAt).getTime()
+                          // Only show "edited" if updated more than 1 second after creation
+                          return updatedAt > createdAt + 1000
+                        })() && (
                           <span className="text-xs text-gray-400 ml-1">(edited)</span>
                         )}
                       </p>
