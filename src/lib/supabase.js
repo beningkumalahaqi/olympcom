@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import { FFmpeg } from '@ffmpeg/ffmpeg'
+import { toBlobURL } from '@ffmpeg/util'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
@@ -145,4 +147,29 @@ export const listFiles = async (bucket, path = '') => {
   }
   
   return data
+}
+
+// Upload and process video
+export const uploadPostVideo = async (videoBuffer, fileName) => {
+  try {
+    // Create unique filename
+    const timestamp = Date.now()
+    const sanitizedName = fileName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '')
+    const uniqueFileName = `${timestamp}_${sanitizedName}`
+    const path = `posts/${uniqueFileName}`
+
+    // Upload the compressed video buffer to the videos bucket
+    await uploadFile(videoBuffer, 'videos', path)
+    
+    // Get public URL
+    const publicUrl = getPublicUrl('videos', path)
+    
+    return {
+      path,
+      url: publicUrl
+    }
+  } catch (error) {
+    console.error('Error uploading post video:', error)
+    throw error
+  }
 }
