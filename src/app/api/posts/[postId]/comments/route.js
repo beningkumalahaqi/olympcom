@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { invalidateCache, CACHE_TAGS, getPostCacheTag } from '@/lib/cache-server'
+import { NotificationService } from '@/lib/notificationService'
 
 export async function POST(request, { params }) {
   const { postId } = await params
@@ -54,6 +55,22 @@ export async function POST(request, { params }) {
         }
       }
     })
+
+    // Send notification to post author (only if not commenting on own post)
+    if (post.authorId !== session.user.id) {
+      try {
+        await NotificationService.notifyNewComment(
+          postId,
+          comment.id,
+          session.user.id,
+          post.authorId,
+          content.trim()
+        )
+      } catch (error) {
+        console.error('Failed to send comment notification:', error)
+        // Don't fail the request if notification fails
+      }
+    }
 
     return NextResponse.json(comment)
   } catch (error) {
