@@ -1,4 +1,4 @@
-import { adminDb, adminMessaging } from '../firebase-admin'
+import { adminDb, adminMessaging } from './firebase-admin'
 
 export class NotificationService {
   static async sendToUser(userId, notification, data = {}) {

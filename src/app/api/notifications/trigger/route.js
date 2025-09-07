@@ -1,6 +1,6 @@
 import { NotificationService } from '../../../../lib/notificationService'
 import { NextResponse } from 'next/server'
-import { prisma } from '../../../../lib/prisma'
+import { prisma } from '../../../../lib/db'
 
 export async function POST(request) {
   try {

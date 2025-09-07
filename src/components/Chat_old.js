@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { formatDistanceToNow } from 'date-fns'
-import { Send } from 'lucide-react'
+import { Send, Smile } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import AvatarImage from './AvatarImage'
 
@@ -11,6 +11,7 @@ export default function Chat({ chatId, participants = [] }) {
   const { data: session } = useSession()
   const { messages, loading, error, sending, connected, sendMessage } = useChat(chatId)
   const [messageText, setMessageText] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -30,6 +31,12 @@ export default function Chat({ chatId, participants = [] }) {
 
     await sendMessage(messageText)
     setMessageText('')
+    inputRef.current?.focus()
+  }
+
+  const handleEmojiClick = (emoji) => {
+    setMessageText(prev => prev + emoji)
+    setShowEmojiPicker(false)
     inputRef.current?.focus()
   }
 
