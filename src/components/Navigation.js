@@ -7,7 +7,7 @@ import AvatarImage from './AvatarImage'
 import { useSession, signOut } from 'next-auth/react'
 import { Menu, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
-import { ChevronDown, User, LogOut, Settings, Home, Users, Menu as MenuIcon, X, MessageSquare, Megaphone } from 'lucide-react'
+import { ChevronDown, User, LogOut, Settings, Home, Users, Menu as MenuIcon, X, MessageSquare, Megaphone, MessageCircle } from 'lucide-react'
 
 export default function Navigation() {
   const { data: session, status } = useSession()
@@ -58,6 +58,10 @@ export default function Navigation() {
                 <Link href="/feed" className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Feed
+                </Link>
+                <Link href="/chat" className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Chat
                 </Link>
               </>
             )}
@@ -214,6 +218,14 @@ export default function Navigation() {
                   >
                     <MessageSquare className="w-5 h-5 mr-3" />
                     Feed
+                  </Link>
+                  <Link
+                    href="/chat"
+                    className="text-gray-900 hover:text-indigo-600 px-3 py-2 rounded-md text-base font-medium flex items-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <MessageCircle className="w-5 h-5 mr-3" />
+                    Chat
                   </Link>
                 </>
               )}
