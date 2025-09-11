@@ -4,19 +4,40 @@ import { toBlobURL, fetchFile } from '@ffmpeg/util'
 
 let ffmpegInstance = null
 
+// Check browser compatibility for FFmpeg.js
+export const checkFFmpegSupport = () => {
+  const checks = {
+    sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+    webAssembly: typeof WebAssembly !== 'undefined',
+    workers: typeof Worker !== 'undefined',
+    crossOriginIsolated: typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false
+  }
+  
+  const isSupported = checks.sharedArrayBuffer && checks.webAssembly && checks.workers
+  
+  return {
+    isSupported,
+    checks,
+    missingFeatures: Object.entries(checks)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key)
+  }
+}
+
 export const initializeFFmpeg = async () => {
   if (ffmpegInstance && ffmpegInstance.loaded) {
     return ffmpegInstance
   }
 
+  // Check browser support first
+  const support = checkFFmpegSupport()
+  if (!support.isSupported) {
+    throw new Error(`Browser does not support FFmpeg.js. Missing features: ${support.missingFeatures.join(', ')}. Please ensure your site is served with proper COOP/COEP headers.`)
+  }
+
   ffmpegInstance = new FFmpeg()
   
   try {
-    // Check if SharedArrayBuffer is available (required for FFmpeg.js)
-    if (typeof SharedArrayBuffer === 'undefined') {
-      throw new Error('SharedArrayBuffer is not available. FFmpeg.js requires Cross-Origin-Embedder-Policy headers.')
-    }
-
     console.log('Loading FFmpeg...')
     // Load FFmpeg
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
@@ -29,6 +50,10 @@ export const initializeFFmpeg = async () => {
     return ffmpegInstance
   } catch (error) {
     console.error('Failed to load FFmpeg:', error)
+    // Provide more helpful error message
+    if (error.message.includes('SharedArrayBuffer')) {
+      throw new Error('Video compression is not available due to browser security restrictions. Please ensure the site is properly configured with COOP/COEP headers.')
+    }
     throw error
   }
 }
