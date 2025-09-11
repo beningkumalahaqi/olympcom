@@ -28,13 +28,20 @@ export default function CreatePost({ onPostCreated }) {
     }
   }
 
-  const handleVideoUpload = (url) => {
-    setMediaUrl(url)
-    setMediaType('video')
-    setError('')
-    // Clear image if video is uploaded
-    if (imageUploadRef.current) {
-      imageUploadRef.current.reset()
+  const handleVideoReady = (isReady) => {
+    // Video is compressed and ready, but not uploaded yet
+    if (isReady) {
+      setMediaType('video')
+      setError('')
+      // Clear image if video is ready
+      if (imageUploadRef.current) {
+        imageUploadRef.current.reset()
+      }
+    } else {
+      if (mediaType === 'video') {
+        setMediaType(null)
+        setMediaUrl(null)
+      }
     }
   }
 
@@ -45,7 +52,10 @@ export default function CreatePost({ onPostCreated }) {
     const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!content.trim() && !mediaUrl) {
+    // Check if we have video to upload
+    const hasVideo = videoUploadRef.current?.hasVideo()
+    
+    if (!content.trim() && !mediaUrl && !hasVideo) {
       setError('Please enter some content or add media')
       return
     }
@@ -59,6 +69,20 @@ export default function CreatePost({ onPostCreated }) {
     setError('')
 
     try {
+      let finalMediaUrl = mediaUrl
+      let finalMediaType = mediaType
+
+      // If we have a video ready for upload, upload it now
+      if (hasVideo) {
+        try {
+          finalMediaUrl = await videoUploadRef.current.uploadVideo()
+          finalMediaType = 'video'
+        } catch (uploadError) {
+          console.error('Error uploading video:', uploadError)
+          throw new Error(`Failed to upload video: ${uploadError.message}`)
+        }
+      }
+
       const response = await fetch('/api/posts', {
         method: 'POST',
         headers: {
@@ -66,8 +90,8 @@ export default function CreatePost({ onPostCreated }) {
         },
         body: JSON.stringify({
           content: content.trim(),
-          mediaUrl,
-          mediaType,
+          mediaUrl: finalMediaUrl,
+          mediaType: finalMediaType,
           userId: session.user.id,
         }),
       })
@@ -166,34 +190,25 @@ export default function CreatePost({ onPostCreated }) {
             {activeTab === 'video' && (
               <PostVideoUpload
                 ref={videoUploadRef}
-                onVideoUpload={handleVideoUpload}
+                onVideoReady={handleVideoReady}
                 onError={handleMediaError}
                 disabled={isSubmitting}
               />
             )}
           </div>
 
-          {/* Media Preview */}
-          {mediaUrl && (
+          {/* Media Preview - Image only, video handled by PostVideoUpload component */}
+          {mediaUrl && mediaType === 'image' && (
             <div className="mt-4">
               <div className="relative inline-block">
-                {mediaType === 'image' ? (
-                  <Image
-                    src={mediaUrl}
-                    alt="Upload preview"
-                    width={300}
-                    height={192}
-                    className="max-w-xs max-h-48 object-cover rounded-lg border"
-                    style={{ maxWidth: '300px', maxHeight: '192px' }}
-                  />
-                ) : (
-                  <video
-                    src={mediaUrl}
-                    controls
-                    className="max-w-xs max-h-48 rounded-lg border"
-                    preload="metadata"
-                  />
-                )}
+                <Image
+                  src={mediaUrl}
+                  alt="Upload preview"
+                  width={300}
+                  height={192}
+                  className="max-w-xs max-h-48 object-cover rounded-lg border"
+                  style={{ maxWidth: '300px', maxHeight: '192px' }}
+                />
                 <button
                   type="button"
                   onClick={() => {
@@ -201,9 +216,6 @@ export default function CreatePost({ onPostCreated }) {
                     setMediaType(null)
                     if (imageUploadRef.current) {
                       imageUploadRef.current.reset()
-                    }
-                    if (videoUploadRef.current) {
-                      videoUploadRef.current.reset()
                     }
                   }}
                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
@@ -223,7 +235,7 @@ export default function CreatePost({ onPostCreated }) {
             </div>
             <button
               type="submit"
-              disabled={(!content.trim() && !mediaUrl) || isSubmitting}
+              disabled={(!content.trim() && !mediaUrl && !videoUploadRef.current?.hasVideo()) || isSubmitting}
               className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />

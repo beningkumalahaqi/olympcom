@@ -4,221 +4,221 @@ import { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { Video, Upload, X, Check, Play, Pause } from 'lucide-react'
 import { compressVideo, getVideoMetadata, initializeFFmpeg, checkFFmpegSupport } from '@/lib/videoCompression'
 
-const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }, ref) => {
+const PostVideoUpload = forwardRef(({ onVideoReady, onError, disabled = false }, ref) => {
   const [isUploading, setIsUploading] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
   const [compressionProgress, setCompressionProgress] = useState(0)
   const [preview, setPreview] = useState(null)
-  const [uploadedVideo, setUploadedVideo] = useState(null)
+  const [compressedVideoFile, setCompressedVideoFile] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [metadata, setMetadata] = useState(null)
+
   const fileInputRef = useRef(null)
   const videoRef = useRef(null)
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    // Upload the compressed video when post is submitted
+    async uploadVideo() {
+      if (!compressedVideoFile) {
+        throw new Error('No video ready for upload')
+      }
+      return await handleUpload(compressedVideoFile)
+    },
+    
+    // Check if video is ready for upload
+    hasVideo() {
+      return !!compressedVideoFile
+    },
+    
+    // Reset the component
+    reset() {
+      if (preview?.url) {
+        URL.revokeObjectURL(preview.url)
+      }
+      setPreview(null)
+      setCompressedVideoFile(null)
+      setIsUploading(false)
+      setIsCompressing(false)
+      setCompressionProgress(0)
+      setMetadata(null)
+      setIsPlaying(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      if (onVideoReady) {
+        onVideoReady(false)
+      }
+    }
+  }))
 
   const handleFileSelect = async (event) => {
     const file = event.target.files[0]
     if (!file) return
 
-    // Validate file type
-    if (!file.type.startsWith('video/')) {
-      onError('Please select a video file')
+    // Reset previous state
+    if (preview?.url) {
+      URL.revokeObjectURL(preview.url)
+    }
+    setPreview(null)
+    setCompressedVideoFile(null)
+    setMetadata(null)
+    setIsPlaying(false)
+    
+    // Video validation
+    const maxSize = 100 * 1024 * 1024 // 100MB
+    if (file.size > maxSize) {
+      const error = 'Video file size must be less than 100MB'
+      if (onError) onError(error)
       return
     }
 
-    // Validate file size (max 500MB for input)
-    if (file.size > 500 * 1024 * 1024) {
-      onError('Video file must be less than 500MB')
+    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm']
+    if (!allowedTypes.includes(file.type)) {
+      const error = 'Please select a valid video file (MP4, MOV, AVI, WebM)'
+      if (onError) onError(error)
       return
     }
 
     try {
-      // Get video metadata first
-      const metadata = await getVideoMetadata(file)
-      
-      // Check duration (max 5 minutes)
-      if (metadata.duration > 300) {
-        onError('Video must be less than 5 minutes long')
-        return
-      }
+      // Get video metadata
+      const videoMetadata = await getVideoMetadata(file)
+      setMetadata(videoMetadata)
 
-      // Create preview
+      // Create preview URL
       const previewUrl = URL.createObjectURL(file)
-      setPreview({ 
-        file, 
-        url: previewUrl, 
-        metadata,
-        originalSize: (file.size / (1024 * 1024)).toFixed(2)
+      setPreview({
+        file,
+        url: previewUrl,
+        type: 'video'
       })
-      
-      // Auto-compress and upload after selection
+
+      // Auto-compress the video
       await handleCompress(file)
     } catch (error) {
       console.error('Error processing video:', error)
-      onError('Error processing video. Please try again.')
+      if (onError) onError(`Error processing video: ${error.message}`)
     }
   }
 
   const handleCompress = async (file) => {
+    if (!file) return
+
+    // Check FFmpeg support
+    const ffmpegSupport = checkFFmpegSupport()
+    if (!ffmpegSupport.isSupported) {
+      const missingFeatures = ffmpegSupport.missingFeatures.join(', ')
+      const error = `Video compression not supported. Missing browser features: ${missingFeatures}. Please ensure your browser supports SharedArrayBuffer, WebAssembly, and Web Workers.`
+      console.warn(error)
+      if (onError) onError(error)
+      return
+    }
+
     setIsCompressing(true)
     setCompressionProgress(0)
-    
-    try {
-      console.log('Starting compression for file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      })
 
-      // Initialize FFmpeg with progress tracking
+    try {
+      console.log('Starting video compression...')
+      
+      // Initialize FFmpeg
       await initializeFFmpeg()
       
-      // Simulate progress updates during compression
-      const progressInterval = setInterval(() => {
-        setCompressionProgress(prev => {
-          if (prev >= 90) return prev
-          return prev + Math.random() * 10
-        })
-      }, 500)
-
-      // Compress video with quality settings - force to 10MB max
-      const compressedVideo = await compressVideo(file, {
-        maxSizeMB: 10,     // Force maximum to 10MB
-        quality: 26,       // High quality (lower CRF = better quality)
-        maxWidth: 1280,    // Max width
-        maxHeight: 720,    // Max height
-        fps: 30           // Max frame rate
+      const compressedFile = await compressVideo(file, {
+        onProgress: (progress) => {
+          console.log(`Compression progress: ${progress}%`)
+          setCompressionProgress(progress)
+        }
       })
 
-      clearInterval(progressInterval)
-      setCompressionProgress(100)
-      
-      console.log('Compression completed. Compressed video:', {
-        size: compressedVideo?.size,
-        type: compressedVideo?.type,
-        isFile: compressedVideo instanceof File,
-        isBlob: compressedVideo instanceof Blob
+      console.log('Video compression completed:', {
+        originalSize: file.size,
+        compressedSize: compressedFile.size,
+        compressionRatio: ((file.size - compressedFile.size) / file.size * 100).toFixed(1) + '%'
       })
 
-      // Validate compressed video
-      if (!compressedVideo || (!(compressedVideo instanceof File) && !(compressedVideo instanceof Blob)) || compressedVideo.size === 0) {
-        throw new Error('Video compression failed: Invalid compressed video')
-      }
-
-      // Create new file from compressed blob/file
-      let compressedFile
-      if (compressedVideo instanceof File) {
-        compressedFile = compressedVideo
-      } else {
-        compressedFile = new File([compressedVideo], file.name.replace(/\.[^/.]+$/, '.mp4'), {
-          type: 'video/mp4'
-        })
-      }
+      // Store compressed video
+      setCompressedVideoFile(compressedFile)
       
-      console.log('Created compressed file:', {
-        name: compressedFile.name,
-        size: compressedFile.size,
-        type: compressedFile.type
+      // Update preview with compressed video
+      if (preview?.url) {
+        URL.revokeObjectURL(preview.url)
+      }
+      const compressedPreviewUrl = URL.createObjectURL(compressedFile)
+      setPreview({
+        file: compressedFile,
+        url: compressedPreviewUrl,
+        type: 'video'
       })
 
-      // Validate the file we just created
-      if (!compressedFile || compressedFile.size === 0) {
-        throw new Error('Failed to create valid compressed file')
+      // Notify parent that video is ready
+      if (onVideoReady) {
+        onVideoReady(true)
       }
-      
-      // Update preview with compressed info
-      setPreview(prev => ({
-        ...prev,
-        compressedFile,
-        compressedSize: (compressedFile.size / (1024 * 1024)).toFixed(2)
-      }))
-      
-      // Auto-upload the compressed video
-      await handleUpload(compressedFile)
+
     } catch (error) {
-      console.error('Error compressing video:', error)
+      console.error('Compression error:', error)
+      let errorMessage = 'Failed to compress video'
+      
+      if (error.message.includes('SharedArrayBuffer')) {
+        errorMessage = 'Video compression requires modern browser features. Please try a different browser or check if your browser supports SharedArrayBuffer.'
+      } else if (error.message.includes('WASM')) {
+        errorMessage = 'Video compression requires WebAssembly support. Please use a modern browser.'
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Video compression timed out. The file might be too large or complex.'
+      } else if (error.message) {
+        errorMessage = `Compression failed: ${error.message}`
+      }
+      
+      if (onError) onError(errorMessage)
+    } finally {
       setIsCompressing(false)
       setCompressionProgress(0)
-      
-      // Check if it's a SharedArrayBuffer error - offer fallback
-      if (error.message.includes('SharedArrayBuffer') || error.message.includes('Cross-Origin')) {
-        const fallbackMessage = 'Video compression is not available in this browser. Would you like to upload the video without compression?'
-        if (window.confirm(fallbackMessage)) {
-          // Use original file if under 50MB
-          if (file.size < 50 * 1024 * 1024) {
-            await handleUpload(file)
-            return
-          } else {
-            onError('Original video is too large (over 50MB). Please compress it manually or try a different browser.')
-            return
-          }
-        }
-      }
-      
-      onError(`Error compressing video: ${error.message}`)
     }
   }
 
-  const handleUpload = async (compressedFile) => {
+  const handleUpload = async (videoFile) => {
+    if (!videoFile) {
+      throw new Error('No video file to upload')
+    }
+
     setIsUploading(true)
-    
+
     try {
-      console.log('handleUpload called with:', {
-        file: compressedFile,
-        name: compressedFile?.name,
-        size: compressedFile?.size,
-        type: compressedFile?.type,
-        isFile: compressedFile instanceof File
-      })
-
-      // Validate the compressed file
-      if (!compressedFile) {
-        throw new Error('No compressed video file provided')
-      }
-
-      if (!(compressedFile instanceof File)) {
-        throw new Error('Invalid file object - not a File instance')
-      }
-
-      if (compressedFile.size === 0) {
-        throw new Error('Compressed video file is empty (0 bytes)')
-      }
-
-      if (!compressedFile.type || !compressedFile.type.startsWith('video/')) {
-        throw new Error(`Invalid file type: ${compressedFile.type}`)
-      }
-
-      console.log('File validation passed. Uploading video:', {
-        name: compressedFile.name,
-        size: compressedFile.size,
-        type: compressedFile.type
+      console.log('Uploading video...', {
+        name: videoFile.name,
+        size: videoFile.size,
+        type: videoFile.type
       })
 
       const formData = new FormData()
-      formData.append('video', compressedFile)
+      formData.append('video', videoFile)
 
       const response = await fetch('/api/posts/upload-video', {
         method: 'POST',
-        body: formData
+        body: formData,
       })
 
-      console.log('Upload response status:', response.status)
-
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('Upload error:', errorData)
-        throw new Error(errorData.error || 'Upload failed')
+        const errorText = await response.text()
+        let errorMessage
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || 'Upload failed'
+        } catch {
+          errorMessage = `Upload failed: ${response.status} ${response.statusText}`
+        }
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
-      console.log('Upload successful:', data)
-      setUploadedVideo(data.url)
-      onVideoUpload(data.url)
+      console.log('Video uploaded successfully:', data)
+
+      return data.url
     } catch (error) {
-      console.error('Error uploading video:', error)
-      onError(error.message || 'Upload failed. Please try again.')
+      console.error('Upload error:', error)
+      throw error
     } finally {
       setIsUploading(false)
-      setIsCompressing(false)
-      setCompressionProgress(0)
     }
   }
 
@@ -227,15 +227,18 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
       URL.revokeObjectURL(preview.url)
     }
     setPreview(null)
-    setUploadedVideo(null)
+    setCompressedVideoFile(null)
+    setMetadata(null)
     setIsPlaying(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-    onVideoUpload(null)
+    if (onVideoReady) {
+      onVideoReady(false)
+    }
   }
 
-  const togglePlay = () => {
+  const togglePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause()
@@ -246,108 +249,107 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
     }
   }
 
-  // Expose reset method to parent
-  useImperativeHandle(ref, () => ({
-    reset: removeVideo
-  }))
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const formatDuration = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   return (
-    <div className="space-y-3">
-      {/* Upload Button */}
-      {!preview && (
-        <div>
+    <div className="space-y-4">
+      {!preview ? (
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
           <input
             ref={fileInputRef}
             type="file"
-            accept="video/mp4,video/webm,video/avi,video/mov"
+            accept="video/*"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={disabled}
+            disabled={disabled || isCompressing || isUploading}
           />
+          <Video className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-600">
+            Select a video file to upload
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            MP4, MOV, AVI, WebM up to 100MB
+          </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="flex items-center space-x-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={disabled || isCompressing || isUploading}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Video className="h-4 w-4" />
-            <span className="text-sm font-medium">Add Video</span>
+            Choose Video
           </button>
-          <p className="text-xs text-gray-500 mt-1">
-            Max 500MB, up to 5 minutes. Supports MP4, WebM, AVI, MOV
-          </p>
         </div>
-      )}
-
-      {/* Video Preview */}
-      {preview && (
-        <div className="relative bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-200">
-          {/* Video Player */}
-          <div className="relative bg-black rounded-lg overflow-hidden mb-3">
-            <video
-              ref={videoRef}
-              src={preview.url}
-              className="w-full max-h-64 object-contain"
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
-              controls={false}
-            />
-            
-            {/* Play/Pause Overlay */}
-            <div 
-              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-              onClick={togglePlay}
-            >
-              {isPlaying ? (
-                <Pause className="h-12 w-12 text-white" />
-              ) : (
-                <Play className="h-12 w-12 text-white" />
-              )}
-            </div>
-          </div>
+      ) : (
+        <div className="relative">
+          <video
+            ref={videoRef}
+            src={preview.url}
+            className="w-full max-w-md rounded-lg border"
+            preload="metadata"
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+          />
+          
+          {/* Play/Pause Overlay */}
+          <button
+            type="button"
+            onClick={togglePlayPause}
+            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity rounded-lg"
+          >
+            {isPlaying ? (
+              <Pause className="h-12 w-12 text-white" />
+            ) : (
+              <Play className="h-12 w-12 text-white" />
+            )}
+          </button>
 
           {/* Video Info */}
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Duration:</span>
-              <span className="font-medium">{Math.round(preview.metadata?.duration || 0)}s</span>
+          {metadata && (
+            <div className="mt-2 text-sm text-gray-600">
+              <p>Duration: {formatDuration(metadata.duration)}</p>
+              <p>Size: {formatFileSize(preview.file.size)}</p>
+              <p>Resolution: {metadata.width}×{metadata.height}</p>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Resolution:</span>
-              <span className="font-medium">
-                {preview.metadata?.width}x{preview.metadata?.height}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Original Size:</span>
-              <span className="font-medium">{preview.originalSize}MB</span>
-            </div>
-            {preview.compressedSize && (
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Compressed Size:</span>
-                <span className="font-medium text-green-600">{preview.compressedSize}MB</span>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Compression Progress */}
           {isCompressing && (
-            <div className="mt-3 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Compressing video...</span>
-                <span className="font-medium">{Math.round(compressionProgress)}%</span>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                <span>Compressing video...</span>
+                <span>{compressionProgress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                  className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${compressionProgress}%` }}
-                ></div>
+                />
               </div>
             </div>
           )}
 
-          {/* Upload Progress */}
+          {/* Ready State */}
+          {compressedVideoFile && !isCompressing && !isUploading && (
+            <div className="mt-3 flex items-center space-x-2 text-sm text-green-600">
+              <Check className="h-4 w-4" />
+              <span>Video ready for upload!</span>
+            </div>
+          )}
+
+          {/* Uploading State */}
           {isUploading && (
             <div className="mt-3 flex items-center space-x-2 text-sm text-blue-600">
               <Upload className="h-4 w-4 animate-bounce" />
@@ -355,19 +357,12 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
             </div>
           )}
 
-          {/* Success State */}
-          {uploadedVideo && (
-            <div className="mt-3 flex items-center space-x-2 text-sm text-green-600">
-              <Check className="h-4 w-4" />
-              <span>Video uploaded successfully!</span>
-            </div>
-          )}
-
           {/* Remove Button */}
           <button
             type="button"
             onClick={removeVideo}
-            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+            disabled={isCompressing || isUploading}
+            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
