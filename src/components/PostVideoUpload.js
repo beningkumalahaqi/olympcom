@@ -2,7 +2,7 @@
 
 import { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { Video, Upload, X, Check, Play, Pause } from 'lucide-react'
-import { compressVideo, getVideoMetadata, initializeFFmpeg } from '@/lib/videoCompression'
+import { compressVideo, getVideoMetadata, initializeFFmpeg, checkFFmpegSupport } from '@/lib/videoCompression'
 
 const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }, ref) => {
   const [isUploading, setIsUploading] = useState(false)
@@ -67,6 +67,12 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
         size: file.size,
         type: file.type
       })
+
+      // Check browser compatibility first
+      const support = checkFFmpegSupport()
+      if (!support.isSupported) {
+        throw new Error(`Video compression is not supported in this browser. Missing: ${support.missingFeatures.join(', ')}. Please try using a different browser or ensure the site has proper security headers.`)
+      }
 
       // Initialize FFmpeg with progress tracking
       await initializeFFmpeg()

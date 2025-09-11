@@ -17,13 +17,31 @@ const nextConfig = {
   // Headers configuration
   async headers() {
     return [
-      // Permissive headers for media to load properly
+      // Headers required for FFmpeg.js (SharedArrayBuffer support)
       {
         source: '/(.*)',
         headers: [
           {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp'
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin'
+          },
+          {
             key: 'Cross-Origin-Resource-Policy',
             value: 'cross-origin'
+          }
+        ]
+      },
+      // Special headers for static assets and scripts to work with COEP
+      {
+        source: '/_next/static/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'same-origin'
           }
         ]
       },
@@ -34,6 +52,10 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable' // 1 year cache
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin'
           }
         ]
       }
@@ -49,6 +71,12 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+      }
+      
+      // Ensure proper handling of SharedArrayBuffer for FFmpeg.js
+      config.experiments = {
+        ...config.experiments,
+        asyncWebAssembly: true,
       }
     }
     
