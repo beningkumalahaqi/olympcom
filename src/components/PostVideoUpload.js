@@ -68,12 +68,6 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
         type: file.type
       })
 
-      // Check browser compatibility first
-      const support = checkFFmpegSupport()
-      if (!support.isSupported) {
-        throw new Error(`Video compression is not supported in this browser. Missing: ${support.missingFeatures.join(', ')}. Please try using a different browser or ensure the site has proper security headers.`)
-      }
-
       // Initialize FFmpeg with progress tracking
       await initializeFFmpeg()
       
@@ -141,9 +135,25 @@ const PostVideoUpload = forwardRef(({ onVideoUpload, onError, disabled = false }
       await handleUpload(compressedFile)
     } catch (error) {
       console.error('Error compressing video:', error)
-      onError(`Error compressing video: ${error.message}`)
       setIsCompressing(false)
       setCompressionProgress(0)
+      
+      // Check if it's a SharedArrayBuffer error - offer fallback
+      if (error.message.includes('SharedArrayBuffer') || error.message.includes('Cross-Origin')) {
+        const fallbackMessage = 'Video compression is not available in this browser. Would you like to upload the video without compression?'
+        if (window.confirm(fallbackMessage)) {
+          // Use original file if under 50MB
+          if (file.size < 50 * 1024 * 1024) {
+            await handleUpload(file)
+            return
+          } else {
+            onError('Original video is too large (over 50MB). Please compress it manually or try a different browser.')
+            return
+          }
+        }
+      }
+      
+      onError(`Error compressing video: ${error.message}`)
     }
   }
 

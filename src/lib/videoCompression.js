@@ -9,8 +9,7 @@ export const checkFFmpegSupport = () => {
   const checks = {
     sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
     webAssembly: typeof WebAssembly !== 'undefined',
-    workers: typeof Worker !== 'undefined',
-    crossOriginIsolated: typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false
+    workers: typeof Worker !== 'undefined'
   }
   
   const isSupported = checks.sharedArrayBuffer && checks.webAssembly && checks.workers
